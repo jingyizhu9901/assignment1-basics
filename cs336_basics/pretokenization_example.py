@@ -1,5 +1,10 @@
+from multiprocessing import Pool
 import os
+import regex as re
 from typing import BinaryIO
+from collections import Counter, defaultdict
+
+PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 
 def find_chunk_boundaries(
     file: BinaryIO, 
@@ -49,14 +54,51 @@ def find_chunk_boundaries(
     # Make sure all boundaries are unique, but might be fewer than desired_num_chunks
     return sorted(set(chunk_boundaries))
 
-## Usage
-with open(..., "rb") as f:
-    boundaries = find_chunk_boundaries(
-        f, num_processes, "<|endoftext|>".encode("utf-8"))
-        
-    # The following is a serial implementation, but you can parallelize this 
-    # by sending each start/end pair to a set of processes.
-    for start, end in zip(boundaries[:-1], boundaries[1:]):
+def process_chunk_worker(
+        filename: str,
+        special_tokens: list[bytes],
+        start: int,
+        end: int
+) -> dict[tuple[bytes],int]:
+    # Escape each decoded special token, join with | (OR) and encode
+    escaped_tokens = [re.escape(tok.decode("utf-8", errors="ignore")) for tok in special_tokens]
+    pattern = "|".join(escaped_tokens)
+    regex = re.compile(pattern)
+    result = {}
+
+    with open(filename, "rb") as f:
         f.seek(start)
         chunk = f.read(end - start).decode("utf-8", errors="ignore")
-        # Run pre-tokenization on your chunk and store the counts for each pre-token
+        
+        # Split the file chunk on special tokens
+        docs = re.split(regex, chunk)
+
+        # Tokenize each doc and update counts
+        for doc in docs:
+            for match in re.finditer(PAT, doc):
+                token = match.group()
+                token_bytes = token.encode('utf-8')
+                token_tuple = tuple(bytes([b]) for b in token_bytes)
+                result[token_tuple] = result.get(token_tuple, 0) + 1
+    return result
+
+def pre_tokenization(
+        filename: str,
+        special_tokens: list[str],
+        num_workers: int
+) -> dict[tuple[bytes],int]:
+
+    special_tokens_list_bytes = [t.encode("utf-8") for t in special_tokens]
+    with open(filename, "rb") as f:
+        boundaries = find_chunk_boundaries(
+            f, num_workers, special_tokens_list_bytes[0])
+    
+    args = [(filename, special_tokens_list_bytes, start, end) for start, end in zip(boundaries[:-1], boundaries[1:])]
+
+    with Pool(num_workers) as pool:
+        results = pool.starmap(process_chunk_worker, args)
+    
+    merged = Counter()
+    for d in results:
+        merged.update(d)
+    return dict(merged)
