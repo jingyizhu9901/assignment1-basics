@@ -111,8 +111,8 @@ def bpe_tokenizer(
 
 # if __name__ == "__main__":
 #     # Example usage
-#     input_path = "./cs336_basics/test.txt"
-#     vocab_size = 270
+#     input_path = "./data/TinyStoriesV2-GPT4-train.txt"
+#     vocab_size = 10000
 #     special_tokens = ["<|endoftext|>"]
 
 #     vocab, merges = bpe_tokenizer(input_path, vocab_size, special_tokens)
