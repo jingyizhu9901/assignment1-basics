@@ -83,15 +83,18 @@ def process_chunk_worker(
     return result
 
 def pre_tokenization(
-        filename: str,
         special_tokens: list[str],
-        num_workers: int
+        num_workers: int,
+        filename: str = None,
+        text: str = None
 ) -> dict[tuple[bytes],int]:
-
+    if not filename and not text:
+        raise ValueError("Either filename or text must be provided")
+    
     special_tokens_list_bytes = [t.encode("utf-8") for t in special_tokens]
-    with open(filename, "rb") as f:
-        boundaries = find_chunk_boundaries(
-            f, num_workers, special_tokens_list_bytes[0])
+    if filename:
+        with open(filename, "rb") as f:
+            boundaries = find_chunk_boundaries(f, num_workers, special_tokens_list_bytes[0])
     
     args = [(filename, special_tokens_list_bytes, start, end) for start, end in zip(boundaries[:-1], boundaries[1:])]
 
@@ -102,3 +105,37 @@ def pre_tokenization(
     for d in results:
         merged.update(d)
     return dict(merged)
+
+def pre_tokenize(text: str, special_tokens: list[str]) -> list[list[bytes]]:
+    """
+    Pre-tokenizes the input text by splitting into chunks by special tokens, then tokens by PAT regex.
+    Returns a list of lists, where each inner list contains bytes representing the token.
+    """
+    if not special_tokens:
+        result = []
+        for match in re.finditer(PAT, text):
+            token = match.group()
+            token_bytes = token.encode('utf-8')
+            token_list = [bytes([b]) for b in token_bytes]
+            result.append(token_list)
+        return result
+    
+    # Sort special tokens by length (descending) to prioritize longer matches
+    sorted_special_tokens = sorted(special_tokens, key=len, reverse=True)
+    pattern = "|".join(re.escape(token) for token in sorted_special_tokens)
+    parts = re.split(f'({pattern})', text)
+    
+    result = []
+    
+    for part in parts:
+        if part in special_tokens:
+            # If part is a special token, encode it as bytes
+            result.append([part.encode('utf-8')])
+        elif part:  # Skip empty parts
+            for match in re.finditer(PAT, part):
+                token = match.group()
+                token_bytes = token.encode('utf-8')
+                token_list = [bytes([b]) for b in token_bytes]
+                result.append(token_list)
+    
+    return result

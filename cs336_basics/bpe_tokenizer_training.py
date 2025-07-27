@@ -59,7 +59,7 @@ def update_pair_counts_incremental(old_id_seq, new_id_seq, changed_sequences, pa
             new_pair = (new_seq[i], new_seq[i+1])
             pair_counts[new_pair] += freq
 
-def bpe_tokenizer(
+def bpe_tokenizer_training(
         input_path: str,
         vocab_size: int,
         special_tokens: list[str]

@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 from typing import IO, Any, BinaryIO
 from collections.abc import Iterable
-from cs336_basics.bpe_tokenizer import bpe_tokenizer
+from cs336_basics.bpe_tokenizer_encode_decode import Tokenizer
+from cs336_basics.bpe_tokenizer_training import bpe_tokenizer_training
 from jaxtyping import Float, Int
 
 import numpy.typing as npt
@@ -559,7 +560,11 @@ def get_tokenizer(
     Returns:
         A BPE tokenizer that uses the provided vocab, merges, and special tokens.
     """
-    raise NotImplementedError
+    return Tokenizer(
+        vocab=vocab,
+        merges=merges,
+        special_tokens=special_tokens,
+    )
 
 
 def run_train_bpe(
@@ -589,4 +594,4 @@ def run_train_bpe(
                 representing that <token1> was merged with <token2>.
                 Merges are ordered by order of creation.
     """
-    return bpe_tokenizer(input_path, vocab_size, special_tokens)
+    return bpe_tokenizer_training(input_path, vocab_size, special_tokens)
